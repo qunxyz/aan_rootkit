@@ -38,3 +38,47 @@ Komplilieren von Kernel Modulen
 			: Alle generierten Dateien im Ordner des Moduls werden gelöscht.
 		- help
 			: Zeigt alle Möglichen Targets für externe Module an.
+
+
+VFS Rootkit
+/usr/lib/modules/3.14.5-1-ARCH/build/include/linux/fs.h
+	< /*
+	<  * This is the "filldir" function type, used by readdir() to let
+	<  * the kernel specify what kind of dirent layout it wants to have.
+	<  * This allows the kernel to read directories into kernel space or
+	<  * to have different dirent layouts depending on the binary type.
+	<  */
+	< typedef int (*filldir_t)(void *, const char *, int, loff_t, u64, unsigned);
+	< struct dir_context {
+	< 	const filldir_t actor;
+	< 	loff_t pos;
+	< };
+
+	< extern int vfs_readdir(struct file *, filldir_t, void *);
+Funktionen readdir und iterate
+	: Beide Funktionen ermöglichen den Zugang zur Adresse von 
+	: filldir_t, wobei iterate, diese Adresse im Strukt dir_context speichert.
+	: 
+	: Ab Kernel 3.1.1 wird readdir mit iterate ersetzt. Die beiden Funktionen
+	: sind im Strukt file_operations im Header fs.h zu finden.
+	linux-3.10.4
+	< struct file_operations {
+	< 	...	
+	< 	
+	< 	ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+	< 	int (*readdir) (struct file *, void *, filldir_t);
+	< 	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
+
+	< 	...
+	< }
+	3.14.5-1-ARCH
+	< struct file_operations {                                                            
+	< 	...
+	< 
+	<   ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+	<   int (*iterate) (struct file *, struct dir_context *);
+	<   unsigned int (*poll) (struct file *, struct poll_table_struct *);
+	< 
+	< 	...
+	< }
+
