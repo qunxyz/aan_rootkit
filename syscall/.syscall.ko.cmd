@@ -1,1 +1,0 @@
-cmd_/mnt/db/zhaw/aan/git/aan_rootkit/syscall/syscall.ko := ld -r -m elf_x86_64 -T /mnt/db/zhaw/aan/kernel/linux-3.10.4/scripts/module-common.lds --build-id  -o /mnt/db/zhaw/aan/git/aan_rootkit/syscall/syscall.ko /mnt/db/zhaw/aan/git/aan_rootkit/syscall/syscall.o /mnt/db/zhaw/aan/git/aan_rootkit/syscall/syscall.mod.o

