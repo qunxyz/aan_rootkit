@@ -1,84 +1,201 @@
 AAN - Rootkit programmieren Doku
-Laden von Rootkits
-	: Rootkits können mit externen Kernel Modulen geladen werden. Lädt ein
-	: Benutzer dieses Modul in den Kernel wird das Rootkit aktiv.
-Komplilieren von Kernel Modulen
-	[Kernel Dokumentatione http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kbuild/modules.txt]
-	: Der Kernel wird anhand eines Werkzeugs mit dem Namen kbuild kompiliert.
-	: So auch die externen Kernel Module. 
-	Beispiel
-	: The command to build an external module is:
-	; $ make -C <path_to_kernel_src> M=$PWD
-	: The kbuild system knows that an external module is being built due to the
-	: "M=<dir>" option given in the command.
+Was ist ein Rootkit?
+	: Unter einem Rootkit versteht man ein Werkzeug, das einem Eindringling
+	: hilft, seine Anwesenheit zu verstecken. Ziel ist, dass er seinen
+	: Aktivitäten unbemerkt nachgehen kann oder aber erst zu einem späteren
+	: Zeitpunkt nach dem Eindringen aktiv werden kann.
+Test System
+	: Das Testsystem (TS) wurde auf einem alten Laptop installiert. So kann man
+	: sorglos und ohne Angst vor Verlusten an den Rootkits rumschrauben. 
+	- Distribution: Archlinux
+	- Kernel: 3.14.5-1-ARCH
+Externe Kernel Module
+	Laden von Rootkits mit Kernel Modulen
+		: Rootkits können mit externen Kernel Modulen geladen werden. Lädt ein
+		: Benutzer dieses Modul in den Kernel nestet sich das Rootkit ins System ein. 
+		: Der Eindringling kann nun über das Rootkit Einfluss auf die
+		: Systemaktivitäten nehmen.
+	Komplilieren von Kernel Modulen
+		[Kernel Dokumentatione http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kbuild/modules.txt]
+		: Der Kernel wird anhand eines Werkzeugs mit dem Namen kbuild kompiliert.
+		: So auch die externen Kernel Module. 
+		Beispiel
+		: The command to build an external module is:
+		; $ make -C <path_to_kernel_src> M=$PWD
+		: The kbuild system knows that an external module is being built due to the
+		: "M=<dir>" option given in the command.
+		; 
+		:	To build against the running kernel use:
+		;	$ make -C /lib/modules/`uname -r`/build M=$PWD
+		Optionen
+			- -C $KDIR
+				: Der Ordner mit dem Source Code des Kernels, für den das Modul
+				: kompiliert werden soll. Der make-Prozess wechselt in diesen Ordner,
+				: führt das darin enthaltene Makefile aus und kehrt danach wieder in den
+				: ursprünglichen Ordner zurück.
+			- -M $PWD
+				: Teilt kbuild mit, dass nun ein externes Kernel Modul kompiliert werden
+				: soll. Der folgende Parameter gibt den Ordner an, in dem sich das Modul
+				: befindet. In unserem Fall gehen wir davon aus, dass der sich Anwender im
+				: gleichen Ordner wie das Modul befindet.
+		Tagets
+			: When building an external module, only a subset of the "make" targets
+			: are available.
+			; make -C $KDIR M=$PWD [target]
+			- modules
+				: Das gleiche wie gar kein Target (wie in unserem Fall). 
+			- modules_install
+				: Installiert das Module. Per default in den extra Ordner:
+				; /lib/modules/<kernel_release>/extra/
+			- clean
+				: Alle generierten Dateien im Ordner des Moduls werden gelöscht.
+			- help
+				: Zeigt alle Möglichen Targets für externe Module an.
+	Verstecken von externen Kernel Modulen
+		: Die geladenen Module sollen sich verstecken. Denn wird der Eindringling
+		: erst einmal entdeckt, wird der Systemadministrator sicher bald handeln und
+		: unser Rootkit entfernen oder das ganze System neu installieren. Damit dies
+		: nicht passiert, müssen wir uns um eine Datei und einen Ordner kümmern:
+		/proc/modules
+		: Die momentan geladenen Module können mit dem Befehl lsmod angezeigt
+		: werden. Dieser Befehl zeigt den Inhalt der Datei /proc/modules an. Der
+		: folgende Zeile in der Funktion aansctab_init entfernt unser Modul aus der Liste:
+		; list_del_init(&__this_module.list);
+		: Näheres zu dieser Funktion kann in der Kernel API Dokumentation gefunden
+		: werden.
+		/sys/module/
+		: Dieser Ordner enthält für jedes Modul einen eingenen Ordner. Darin
+		: befinden sich Dateien mit Informationen zum Modul. Um den Ordner unseres
+		: Moduls zu löschen, reicht diese Zeile:
+		; kobject_del(&THIS_MODULE->mkobj.kobj);
+		;
+		: Nun können wir also ein Kernel Modul laden, dass mit herkömmlichen
+		: Methoden nicht gefunden werden kann. Aber Achtung, das bedeutet auch,
+		: dass das Modul nicht mehr entfernt werden kann (ausser mit einem
+		: Neustart des Rechners). Das System würde antworten, dass das Modul nicht existiere.
+	Nachträgliches Laden von Modulen unterbinden
+Einen Ordner mit Manipulation der System Call Table verstecken
+	: Diese Rookits manipulieren die System Call Table (ab jetzt SCT) des Systems. Bis und mit
+	: Kernel 2.4 ging dies einfach, da die Adresse der SCT in einer globalen
+	: Variablen gespeichert wurde und somit ausgelesen werden konnte.
 	; 
-	:	To build against the running kernel use:
-	;	$ make -C /lib/modules/`uname -r`/build M=$PWD
-	Optionen
-		- -C $KDIR
-			: Der Ordner mit dem Source Code des Kernels, für den das Modul
-			: kompiliert werden soll. Der make-Prozess wechselt in diesen Ordner,
-			: führt das darin enthaltene Makefile aus und kehrt danach wieder in den
-			: ursprünglichen Ordner zurück.
-		- -M $PWD
-			: Teilt kbuild mit, dass nun ein externes Kernel Modul kompiliert werden
-			: soll. Der folgende Parameter gibt den Ordner an, in dem sich das Modul
-			: befindet. In unserem Fall gehen wir davon aus, dass der sich Anwender im
-			: gleichen Ordner wie das Modul befindet.
-	Tagets
-		: When building an external module, only a subset of the "make" targets
-		: are available.
-		; make -C $KDIR M=$PWD [target]
-		- modules
-			: Das gleiche wie gar kein Target (wie in unserem Fall). 
-		- modules_install
-			: Installiert das Module. Per default in den extra Ordner:
-			; /lib/modules/<kernel_release>/extra/
-		- clean
-			: Alle generierten Dateien im Ordner des Moduls werden gelöscht.
-		- help
-			: Zeigt alle Möglichen Targets für externe Module an.
-
-
-VFS Rootkit
-/usr/lib/modules/3.14.5-1-ARCH/build/include/linux/fs.h
-	< /*
-	<  * This is the "filldir" function type, used by readdir() to let
-	<  * the kernel specify what kind of dirent layout it wants to have.
-	<  * This allows the kernel to read directories into kernel space or
-	<  * to have different dirent layouts depending on the binary type.
-	<  */
-	< typedef int (*filldir_t)(void *, const char *, int, loff_t, u64, unsigned);
-	< struct dir_context {
-	< 	const filldir_t actor;
-	< 	loff_t pos;
-	< };
-
-	< extern int vfs_readdir(struct file *, filldir_t, void *);
-Funktionen readdir und iterate
-	: Beide Funktionen ermöglichen den Zugang zur Adresse von 
-	: filldir_t, wobei iterate, diese Adresse im Strukt dir_context speichert.
-	: 
-	: Ab Kernel 3.1.1 wird readdir mit iterate ersetzt. Die beiden Funktionen
-	: sind im Strukt file_operations im Header fs.h zu finden.
-	linux-3.10.4
-	< struct file_operations {
-	< 	...	
-	< 	
-	< 	ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
-	< 	int (*readdir) (struct file *, void *, filldir_t);
-	< 	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
-
-	< 	...
-	< }
-	3.14.5-1-ARCH
-	< struct file_operations {                                                            
-	< 	...
+	: Dieses Sicherheitsproplem wurde mit Kernel 2.6 (ab Dezember 2003) behoben.
+	: Dennoch wurde die Adresse der SCT zum Teil ins lokale Dateisystem
+	: exportiert. Zum Beispiel in die Datei /boot/System.map-<kernel version>,
+	: die auf dem TS jedoch nicht existiert. Dafür wurde eine andere
+	: interessante Datei auf dem System gefunden: /proc/kallsyms. Darin befinden
+	: sich Adressen zu vielen Funktionen. Diese Datei wird jedoch nur erstellt,
+	: wenn der Kernel mit der Option KALLSYMS_ALL kompiliert wurde, was auf
+	: viele moderne Kernel zutrifft. Tatsächlich ist die Datei auf meinem System
+	: vorhanden. Die Adresse der SCT ist darin leider nicht auffindbar.
+	: Offensichtlich hat man auch diese Sicherheitslücke geschlossen. Sowieso
+	: wäre dies keine zuverlässige Methode für das Auffinden der SCT Adresse
+	: gewesen, weil, wie gesagt, nicht alle Kernel mit der KALLSYMS Option
+	: kompiliert werden. 
+	;
+	: Es gibt jedoch weitere Methoden, um an die Adresse zu kommen. Eine
+	: beliebte Methode ist, den Kernel Speicher nach der Adresse eines System
+	: Calls zu durchsuchen, der exportiert wird. Eine Liste mit System Calls
+	: kann in der Datei /usr/include/asm/unistd_64.h eingesehen werden (auf
+	: einem 64 Bit System)
+	< #ifndef _ASM_X86_UNISTD_64_H
+	< #define _ASM_X86_UNISTD_64_H 1
 	< 
-	<   ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
-	<   int (*iterate) (struct file *, struct dir_context *);
-	<   unsigned int (*poll) (struct file *, struct poll_table_struct *);
+	< #define __nr_read 0
+	< #define __nr_write 1
+	< #define __nr_open 2
+	< #define __nr_close 3
 	< 
-	< 	...
+	< ....
+	< 
+	< #define __NR_sched_setattr 314
+	< #define __NR_sched_getattr 315
+	< 
+	< #endif /* _ASM_X86_UNISTD_64_H */
+	: Aber welche davon werden in den Kernel Speicher
+	: exportiert? In den meisten Onlinetutorials wird nach sys_close gesucht,
+	: das in unserer Datei an dritte Stelle mit dem Eintrag __nr_close
+	: aufgeführt ist. Also gehen wir davon aus, dass diese Funktion
+	: exportiert wird. Unser Aufgabe ist nun, den Kernel Speicher nach der
+	: Adresse von sys_close abzusuchen. Wie gehen vor, indem wir Adresse für
+	: Adresse auslesen und mit derjenigen von sys_close vergleichen. Falls wir
+	: fündig werden, können wir daraus die Adresse der SCT berechnen. Denn diese
+	: befindet sich an nullter Stelle, also drei Adressen vor der Adress von
+	: sys_close. 
+	:
+	: Dies ist der Speicherbereich, den wir durchsuchen werden. Die Adresse hat
+	: die Länge unsigned long. 
+	< #define START_CHECK 0xffffffff81000000
+	< #define END_CHECK 0xffffffffa2000000
+	< typedef unsigned long psize;
+	: Die Startadresse ist der Beginn des virtuellen Kernelspeichers. Das Ende
+	: markiert den Punkt, ab wo die I/O-Geräte adressiert werden. 
+	; 
+	: Im nächsten Codeausschnitt lesen wir jede Adresse aus. Dies könnte die
+	: Adresse der SCT sein. Die SCT beihaltet wiederum die Adressen der
+	: einzelnen System Calls. Um uns zu vergewissern, ob es sich wirklich um die
+	: SCT-Adresse handelt, vergleichen wir also die Adresse an der
+	: __nr_close-ten Stelle mit der Adresse der Funktion sys_close. Falls dies
+	: der Fall ist, geben wir die Adresse an nullter Stelle an die aufrufende
+	: Funktion zurück. Andernfalls inkrementieren wir unserern Zähler um eine
+	: Adresse und beginnen von vorn.  
+	< psize **find(void) {
+	<   psize **sctable;
+	<   psize i = START_CHECK;
+	<   while (i < END_CHECK) {
+	<     sctable = (psize **) i;
+	<     if (sctable[__NR_close] == (psize *) sys_close) {
+	<       return &sctable[0];
+	<     }
+	<     i += sizeof(void *);
+	<   }
+	<   return NULL;
 	< }
 
+Einen Ordner mit Manipulation des VFS verstecken
+	/usr/lib/modules/3.14.5-1-ARCH/build/include/linux/fs.h
+		< /*
+		<  * This is the "filldir" function type, used by readdir() to let
+		<  * the kernel specify what kind of dirent layout it wants to have.
+		<  * This allows the kernel to read directories into kernel space or
+		<  * to have different dirent layouts depending on the binary type.
+		<  */
+		< typedef int (*filldir_t)(void *, const char *, int, loff_t, u64, unsigned);
+		< struct dir_context {
+		< 	const filldir_t actor;
+		< 	loff_t pos;
+		< };
+	
+		< extern int vfs_readdir(struct file *, filldir_t, void *);
+	Funktionen readdir und iterate
+		: Beide Funktionen ermöglichen den Zugang zur Adresse von 
+		: filldir_t, wobei iterate, diese Adresse im Strukt dir_context speichert.
+		: 
+		: Ab Kernel 3.1.1 wird readdir mit iterate ersetzt. Die beiden Funktionen
+		: sind im Strukt file_operations im Header fs.h zu finden.
+		linux-3.10.4
+		< struct file_operations {
+		< 	...	
+		< 	
+		< 	ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+		< 	int (*readdir) (struct file *, void *, filldir_t);
+		< 	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
+		<
+		< 	...
+		< }
+		3.14.5-1-ARCH
+		< struct file_operations {                                                            
+		< 	...
+		< 
+		<   ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+		<   int (*iterate) (struct file *, struct dir_context *);
+		<   unsigned int (*poll) (struct file *, struct poll_table_struct *);
+		< 
+		< 	...
+		< }
+Tasks
+	- sct addr in /proc/kallsyms suchen
+		: Auf dem Testsystem die Adresse nochmals anschauen und in der Datei
+		: suchen. 
+Bibliografie
+	https://www.kernel.org/doc/htmldocs/kernel-api/API-list-del-init.html
