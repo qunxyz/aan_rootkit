@@ -194,8 +194,11 @@ Einen Ordner mit Manipulation des VFS verstecken
 		< 	...
 		< }
 Tasks
-	- sct addr in /proc/kallsyms suchen
+	[_] sct addr in /proc/kallsyms suchen
 		: Auf dem Testsystem die Adresse nochmals anschauen und in der Datei
 		: suchen. 
+	[_] kfree part im annsctab ändern
+		- ganzen buffer printf.
+		- mit "" ersetzen
 Bibliografie
 	https://www.kernel.org/doc/htmldocs/kernel-api/API-list-del-init.html
