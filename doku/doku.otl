@@ -18,14 +18,18 @@ Externe Kernel Module
 	Komplilieren von Kernel Modulen
 		[Kernel Dokumentatione http://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/Documentation/kbuild/modules.txt]
 		: Der Kernel wird anhand eines Werkzeugs mit dem Namen kbuild kompiliert.
-		: So auch die externen Kernel Module. 
+		: So auch die externen Kernel Module. Sie werden mit einem eigenen
+		: Makefile kompiliert, das sich im Sourcecode des Kernels befindet. Im
+		: eigenen Makefile schreibt man lediglich, wo sich der Sourcecode des
+		: Kerel befindet. Wie das geht, wird im folgenden Beispiel erläutert.
 		Beispiel
-		: The command to build an external module is:
+		: Der entscheidente Befehl lautet:
 		; $ make -C <path_to_kernel_src> M=$PWD
-		: The kbuild system knows that an external module is being built due to the
-		: "M=<dir>" option given in the command.
+		: Das kbuild System weiss nun, dass ein externes Kernel Modul mit dem
+		: Makefile im Pfad <path_to_kernel_src> kompiliert werden soll.
 		; 
-		:	To build against the running kernel use:
+		:	Um ein Modul mit dem Makefile des momentan laufenden Kernels zu
+		:	komplilieren kann man diesen Befehl nutzen:
 		;	$ make -C /lib/modules/`uname -r`/build M=$PWD
 		Optionen
 			- -C $KDIR
@@ -39,8 +43,7 @@ Externe Kernel Module
 				: befindet. In unserem Fall gehen wir davon aus, dass der sich Anwender im
 				: gleichen Ordner wie das Modul befindet.
 		Tagets
-			: When building an external module, only a subset of the "make" targets
-			: are available.
+			: Im Kernel Makefile stehen vier Targets zur Auswahl:
 			; make -C $KDIR M=$PWD [target]
 			- modules
 				: Das gleiche wie gar kein Target (wie in unserem Fall). 
@@ -73,6 +76,7 @@ Externe Kernel Module
 		: Methoden nicht gefunden werden kann. Aber Achtung, das bedeutet auch,
 		: dass das Modul nicht mehr entfernt werden kann (ausser mit einem
 		: Neustart des Rechners). Das System würde antworten, dass das Modul nicht existiere.
+		: Deshalb werden diese zwei Zeilen auskommentiert. 
 	Nachträgliches Laden von Modulen unterbinden
 Einen Ordner mit Manipulation der System Call Table verstecken
 	: Diese Rookits manipulieren die System Call Table (ab jetzt SCT) des Systems. Bis und mit
@@ -80,18 +84,18 @@ Einen Ordner mit Manipulation der System Call Table verstecken
 	: Variablen gespeichert wurde und somit ausgelesen werden konnte.
 	; 
 	: Dieses Sicherheitsproplem wurde mit Kernel 2.6 (ab Dezember 2003) behoben.
-	: Dennoch wurde die Adresse der SCT zum Teil ins lokale Dateisystem
-	: exportiert. Zum Beispiel in die Datei /boot/System.map-<kernel version>,
-	: die auf dem TS jedoch nicht existiert. Dafür wurde eine andere
-	: interessante Datei auf dem System gefunden: /proc/kallsyms. Darin befinden
-	: sich Adressen zu vielen Funktionen. Diese Datei wird jedoch nur erstellt,
-	: wenn der Kernel mit der Option KALLSYMS_ALL kompiliert wurde, was auf
-	: viele moderne Kernel zutrifft. Tatsächlich ist die Datei auf meinem System
-	: vorhanden. Die Adresse der SCT ist darin leider nicht auffindbar.
-	: Offensichtlich hat man auch diese Sicherheitslücke geschlossen. Sowieso
-	: wäre dies keine zuverlässige Methode für das Auffinden der SCT Adresse
-	: gewesen, weil, wie gesagt, nicht alle Kernel mit der KALLSYMS Option
-	: kompiliert werden. 
+	: Dennoch wurde die Adresse der SCT zum auf manchen Distributionen ins
+	: lokale Dateisystem exportiert. Zum Beispiel in die Datei
+	: /boot/System.map-<kernel version>, die auf dem TS jedoch nicht existiert.
+	: Dafür wurde eine andere interessante Datei auf dem System gefunden:
+	: /proc/kallsyms. Darin befinden sich Adressen zu vielen Funktionen. Diese
+	: Datei wird jedoch nur erstellt, wenn der Kernel mit der Option
+	: KALLSYMS_ALL kompiliert wurde, was auf viele moderne Kernel zutrifft.
+	: Tatsächlich ist die Datei auf meinem System vorhanden. Die Adresse der SCT
+	: ist darin leider nicht auffindbar.  Offensichtlich hat man auch diese
+	: Sicherheitslücke geschlossen. Sowieso wäre dies keine zuverlässige Methode
+	: für das Auffinden der SCT Adresse gewesen, weil, wie gesagt, nicht alle
+	: Kernel mit der KALLSYMS Option kompiliert werden. 
 	;
 	: Es gibt jedoch weitere Methoden, um an die Adresse zu kommen. Eine
 	: beliebte Methode ist, den Kernel Speicher nach der Adresse eines System
@@ -194,9 +198,11 @@ Einen Ordner mit Manipulation des VFS verstecken
 		< 	...
 		< }
 Tasks
-	[_] sct addr in /proc/kallsyms suchen
+	[X] sct addr in /proc/kallsyms suchen
 		: Auf dem Testsystem die Adresse nochmals anschauen und in der Datei
 		: suchen. 
+		- Die Adresse des SCT lautet ffffffff81601600 und ist in der Datei nicht auffindbar. 
+		: Offenbar wird die Adresse aus sicherheitsgründen nicht exportiert.
 	[_] kfree part im annsctab ändern
 		- ganzen buffer printf.
 		- mit "" ersetzen

